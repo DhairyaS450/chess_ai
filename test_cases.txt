@@ -1,0 +1,118 @@
+# TEST CASES FOR CHESS GAME WITH AI
+
+# 1. ChessBoard Class
+
+# Test 1.1: Initial Board Setup
+# Input: Initialize a ChessBoard object.
+# Expected Output: 
+# - All pieces are in their standard starting positions.
+# - Castling rights are set to True for both players.
+# - No en passant flags set.
+# Edge Case: None (Standard setup).
+
+# Test 1.2: Legal Move Generation
+# Input: Call generate_legal_moves('white') for the starting board.
+# Expected Output:
+# - 20 legal moves (16 pawn moves and 4 knight moves).
+# Edge Cases:
+# - Generate legal moves for a player in check (ensure moves resolve check).
+# - Generate legal moves with pinned pieces (ensure they cannot leave the king in check).
+
+# Test 1.3: Path Clearance
+# Input: Call is_path_clear((0, 0), (0, 7)) on a starting board.
+# Expected Output: False (rook is blocked by pawns).
+# Edge Cases:
+# - Path blocked by one piece.
+# - Path clear for diagonals, ranks, and files.
+
+# Test 1.4: Check Detection
+# Input: Place the Black King at (0, 0) and a White Rook at (0, 7). Call is_check('black').
+# Expected Output: True (Black King is under attack).
+# Edge Case:
+# - Multiple attackers on the king.
+
+# Test 1.5: Special Moves
+# En Passant:
+# - Input: Move White Pawn from (4, 6) to (4, 4). Black Pawn moves from (3, 4) to (3, 5).
+#   Call generate_legal_moves('white').
+# - Expected Output: En passant move available for White Pawn at (4, 4).
+# Castling:
+# - Input: Ensure castling conditions are met and call generate_legal_moves('white').
+# - Expected Output: Castling moves (O-O and O-O-O) are available.
+# Pawn Promotion:
+# - Input: Move White Pawn to the last rank and execute promotion.
+# - Expected Output: Prompts for promotion; board reflects the selected piece.
+
+# Test 1.6: Checkmate and Stalemate
+# Checkmate:
+# - Input: King surrounded by enemy pieces and unable to escape (e.g., Back Rank Mate).
+# - Expected Output: is_checkmate() returns True.
+# Stalemate:
+# - Input: King has no legal moves, but is not in check.
+# - Expected Output: is_stalemate() returns True.
+
+# 2. ChessAI Class
+
+# Test 2.1: Random Move Generation (Easy AI)
+# Input: Call generate_move(board, 'easy') for the starting board.
+# Expected Output: Returns a legal random move.
+# Edge Case: Ensure all generated moves are valid under current board state.
+
+# Test 2.2: Board Evaluation (Medium AI)
+# Input: Evaluate board states with:
+# - King safety
+# - Material balance
+# - Piece activity
+# Expected Output: Heuristic scores align with positional advantages.
+
+# Test 2.3: Minimax Algorithm (Hard AI)
+# Input: Call generate_move(board, 'hard') for a midgame position.
+# Expected Output: Move selected aligns with optimal minimax decisions.
+# Edge Case: Depth-limited pruning in complex positions.
+
+# 3. GameController Class
+
+# Test 3.1: Turn Management
+# Input: Execute a move and check the turn indicator.
+# Expected Output: Alternates between "White's Turn" and "Black's Turn."
+# Edge Case: Skip turn after stalemate detection.
+
+# Test 3.2: Game Over Conditions
+# Input: Setup a board state where Black is checkmated and call check_game_over().
+# Expected Output: Outputs "Checkmate! White wins."
+# Edge Cases:
+# - Stalemate detection.
+# - Insufficient material (e.g., King vs. King).
+
+# 4. GUI Interactions
+
+# Test 4.1: Board Rendering
+# Input: Call draw_board(screen) after executing moves.
+# Expected Output: Correct rendering of all pieces at updated positions.
+# Edge Case: Test rendering after pawn promotion and castling.
+
+# Test 4.2: Move Highlighting
+# Input: Call highlight_moves(valid_moves) for a selected piece.
+# Expected Output: Correct squares are highlighted.
+# Edge Cases:
+# - Highlighting during check scenarios.
+# - No moves available for selected piece.
+
+# Test 4.3: User Feedback
+# Input: Call display_message("Checkmate!") during game over.
+# Expected Output: Message is displayed on screen.
+# Edge Case: No overlapping messages during gameplay.
+
+# 5. End-to-End Test Cases
+
+# Test 5.1: Human vs. AI (Easy)
+# Input: Play a game where the user and AI alternate turns.
+# Expected Output: Game adheres to rules, and AI responds within 1 second.
+
+# Test 5.2: Human vs. AI (Hard)
+# Input: Set AI difficulty to Hard and play from midgame.
+# Expected Output: AI makes calculated moves; ensures no illegal moves.
+
+# Test 5.3: Special Moves Sequence
+# Input: Play a game that includes castling, en passant, and pawn promotion.
+# Expected Output: All special moves are handled correctly.

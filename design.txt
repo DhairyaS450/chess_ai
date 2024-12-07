@@ -1,0 +1,108 @@
+# Chess Game with AI - Design Document
+
+# PURPOSE:
+# The purpose of this program is to create a chess game that allows players
+# to play against another human or an AI opponent. The program will strictly
+# adhere to chess rules, ensuring legal move enforcement, special move handling
+# (castling, en passant, promotion), and efficient game logic to support a responsive AI.
+
+# PERFORMANCE CONSIDERATIONS:
+# - Use state representation to avoid recalculating unnecessary data.
+# - Efficiently generate and filter legal moves after each turn.
+# - Optimize minimax pruning depth to balance AI response time and decision quality.
+
+# MODULES TO BE IMPORTED:
+# - pygame: for GUI rendering
+# - random: for generating moves in Easy AI mode
+# - Custom Modules:
+#   - chess_board: Handles the chessboard class and related methods
+#   - chess_ai: Implements AI logic
+#   - chess_rules: Contains helper functions for rule enforcement
+
+# CLASS STRUCTURE:
+
+# 1. ChessBoard Class:
+#    Represents the chessboard state and provides methods for move generation, validation,
+#    and updates.
+#    - Data: 8x8 grid with piece representation, game state flags (e.g., castling rights).
+#    - Methods: generate_legal_moves(), is_check(), is_checkmate(), execute_move(), etc.
+
+# 2. ChessAI Class:
+#    Handles AI logic for generating moves based on difficulty level.
+#    - Easy: Random legal move.
+#    - Medium: Basic evaluation of board state.
+#    - Hard: Minimax with alpha-beta pruning.
+
+# 3. GameController Class:
+#    Manages game flow and integrates ChessBoard, ChessAI, and the GUI.
+#    - Responsibilities: Manage turns, process player inputs, invoke AI moves.
+
+# DATA FLOW AND STORAGE:
+
+# - Inputs:
+#   - Mouse clicks for move selection and execution.
+#   - Menu interactions for choosing game mode and difficulty.
+# - Storage:
+#   - ChessBoard object: Encapsulates board state and legal moves.
+#   - Move history: List of moves in algebraic notation.
+# - Outputs:
+#   - Updated board visualization, move highlights, and game messages.
+
+# FUNCTIONS AND METHODS:
+
+# 1. ChessBoard Class:
+#    - __init__(self):
+#      - Initializes the board with the starting positions and sets game state variables.
+#    - generate_legal_moves(self, color):
+#      - Returns a list of all legal moves for the given player.
+#      - Considers special moves (castling, en passant, promotion).
+#    - execute_move(self, move):
+#      - Updates the board and state variables after a move.
+#      - Handles pawn promotion and captures as needed.
+#    - is_check(self, color):
+#      - Returns True if the given player is in check as an opponent's piece is attacking it.
+#    - is_checkmate(self, color):
+#      - Returns True if the given player is in checkmate as they are in check and no legal moves exist
+#    - is_stalemate(self, color):
+#      - Returns True if the given player is not in check and no legal moves exist
+#    - is_path_clear(self, start, end):
+#      - Returns True if no pieces obstruct the path between start and end positions.
+
+# 2. ChessAI Class:
+#    - generate_move(self, board, difficulty):
+#      - Easy: Selects a random move from legal moves.
+#      - Medium: Evaluates moves based on piece values and board control.
+#      - Hard: Uses minimax algorithm with alpha-beta pruning for optimal decision-making.
+#    - evaluate_board(self, board):
+#      - Assigns a heuristic score to a board state for use in Medium and Hard AI.
+
+# 3. GameController Class:
+#    - __init__(self):
+#      - Initializes the game, including ChessBoard, ChessAI, and GUI components.
+#    - process_turn(self):
+#      - Handles player input and AI response during each turn.
+#    - handle_promotion(self, pawn_position):
+#      - Prompts user to select a piece for promotion.
+#    - check_game_over(self):
+#      - Checks for endgame conditions (checkmate, stalemate).
+
+# SPECIAL MOVE HANDLING FUNCTIONS:
+
+# - Castling:
+#   - Validates castling rights by checking that:
+#     1. The king and rook involved have not moved.
+#     2. No pieces obstruct the path.
+#     3. The king does not move through or into check.
+# - En Passant:
+#   - Includes en passant as a valid move if a pawn moved two squares on the previous turn.
+# - Promotion:
+#   - Automatically prompts the player for promotion choice when a pawn reaches the last rank.
+
+# GUI INTERACTIONS:
+
+# - draw_board(self, screen):
+#   - Renders the chessboard and all pieces.
+# - highlight_moves(self, moves):
+#   - Highlights all legal moves for a selected piece.
+# - display_message(self, message):
+#   - Shows game status updates (e.g., "Checkmate!", "Draw").
