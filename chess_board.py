@@ -387,6 +387,7 @@ class ChessBoard:
         self.board[end_row][end_col] = moving_piece
         self.board[start_row][start_col] = '..'
 
+        print(moving_piece, start_pos, end_pos)
         # Update piece_positions
         self.piece_positions[moving_piece].remove(start_pos)
         self.piece_positions[moving_piece].append(end_pos)
@@ -578,10 +579,15 @@ class ChessBoard:
             else:  # Queen-side castling
                 rook_start = (start_pos[0], 0)
                 rook_end = (start_pos[0], 3)
-    
+            piece = self.board[rook_start[0]][rook_start[1]][0] + "R"
+        
             # Move the rook
             self.board[rook_end[0]][rook_end[1]] = self.board[rook_start[0]][rook_start[1]]
             self.board[rook_start[0]][rook_start[1]] = '..'
+
+            # Update the rook position
+            self.piece_positions[piece].remove(rook_start)
+            self.piece_positions[piece].append(rook_end)
     
     def _update_castling_rights(self, moving_piece, start_pos):
         """
