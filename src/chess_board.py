@@ -1,5 +1,4 @@
 # chess_board.py
-
 from pprint import pprint
 import logging
 
