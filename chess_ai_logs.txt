@@ -1,0 +1,6 @@
+2024-12-22 20:10:11,582 - DEBUG - AI attempted a move, ((1, 4), (3, 4))
+2024-12-22 20:10:14,262 - DEBUG - AI attempted a move, ((0, 3), (2, 5))
+2024-12-22 20:10:17,678 - DEBUG - AI attempted a move, ((1, 1), (2, 1))
+2024-12-22 20:10:21,898 - DEBUG - AI attempted a move, ((1, 6), (2, 6))
+2024-12-22 20:10:25,102 - DEBUG - AI attempted a move, ((0, 6), (1, 4))
+2024-12-22 20:10:28,800 - DEBUG - AI attempted a move, ((2, 5), (2, 2))

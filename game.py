@@ -1,6 +1,14 @@
 import pygame
 from pprint import pprint
 from chess_board import ChessBoard
+import logging
+
+# Configure logging
+logging.basicConfig(
+    filename='chess_ai_logs.txt',  # Log file name
+    level=logging.DEBUG,          # Log all DEBUG level and above messages
+    format='%(asctime)s - %(levelname)s - %(message)s'  # Log format
+)
 
 class GameController:
     def __init__(self, screen, ai=None):
@@ -95,13 +103,10 @@ class GameController:
         """
         Executes the AI's turn after the board is updated.
         """
-        legal_moves = self.board.generate_legal_moves(self.board.turn)  # Use updated board state
         ai_move = self.ai.choose_move(self.board)  # Choose a move
-        if ai_move in legal_moves:  # Ensure move is valid
-            self.board.execute_move(ai_move)
-            self.check_game_over()  # Check for game-ending conditions
-        else:
-            raise ValueError("AI attempted an illegal move!")
+        self.board.execute_move(ai_move)
+        self.check_game_over()  # Check for game-ending conditions
+        logging.debug(f"AI attempted a move, {ai_move}")
 
     def handle_ai_turn(self):
         """
@@ -195,6 +200,14 @@ class GameController:
             self.screen.blit(popup, (popup_x, popup_y))
             pygame.display.flip()
 
+    def handle_undo(self):
+        """
+        Handles the undo move request.
+        """
+        try:
+            self.board.undo_move()
+        except ValueError as e:
+            print(e)  # No moves to undo
 
     def restart_game(self):
         """
@@ -211,7 +224,6 @@ class GameController:
         """
         while self.running:
             if self.ai and self.board.turn == 'black':  # AI's turn (assuming AI plays as black)
-                legal_moves = self.board.generate_legal_moves(self.board.turn)
                 ai_move = self.ai.choose_move(self.board)
                 if ai_move in legal_moves:  # Validate AI move
                     self.board.execute_move(ai_move)
@@ -225,6 +237,10 @@ class GameController:
                     self.running = False
                 elif event.type == pygame.MOUSEBUTTONDOWN:
                     self.handle_click(pygame.mouse.get_pos())
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_u:  # Undo move
+                        self.handle_undo()
+
 
             # Draw the board and update the screen
             self.draw_board()

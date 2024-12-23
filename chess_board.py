@@ -1,7 +1,14 @@
 # chess_board.py
 
 from pprint import pprint
+import logging
 
+# Configure logging
+logging.basicConfig(
+    filename='chess_ai_logs.txt',  # Log file name
+    level=logging.DEBUG,          # Log all DEBUG level and above messages
+    format='%(asctime)s - %(levelname)s - %(message)s'  # Log format
+)
 
 class ChessBoard:
     def __init__(self):
@@ -391,9 +398,11 @@ class ChessBoard:
         self.board[end_row][end_col] = moving_piece
         self.board[start_row][start_col] = '..'
 
-        print(moving_piece, start_pos, end_pos)
         # Update piece_positions
-        self.piece_positions[moving_piece].remove(start_pos)
+        try:
+            self.piece_positions[moving_piece].remove(start_pos)
+        except KeyError as e:
+            logging.debug(e)
         self.piece_positions[moving_piece].append(end_pos)
 
         # If a piece was captured, remove its position
@@ -402,8 +411,17 @@ class ChessBoard:
             if not self.piece_positions[captured_piece]:  # If no instances of the piece remain
                 del self.piece_positions[captured_piece]
     
-        # Update move history
-        self.move_history.append(move)
+        # Record the move and state changes
+        self.move_history.append({
+            "move": move,
+            "moving_piece": moving_piece,
+            "captured_piece": captured_piece,
+            "start_pos": start_pos,
+            "end_pos": end_pos,
+            "castling_rights": self.castling_rights.copy(),
+            "en_passant_target": self.en_passant_target,
+            "king_positions": self.king_positions[:],
+        })
     
         # Update king position if the king moved
         if moving_piece[1] == 'K':
@@ -425,8 +443,48 @@ class ChessBoard:
         # Switch turn
         self.turn = 'black' if self.turn == 'white' else 'white'
 
-        pprint(self.piece_positions)
+        # pprint(self.piece_positions)
     
+    def undo_move(self):
+        """
+        Reverts the last move and restores the board to its previous state.
+        """
+        if not self.move_history:
+            raise ValueError("No moves to undo!")
+    
+        # Retrieve the last move from history
+        last_move = self.move_history.pop()
+        move = last_move["move"]
+        moving_piece = last_move["moving_piece"]
+        captured_piece = last_move["captured_piece"]
+        start_pos, end_pos = last_move["start_pos"], last_move["end_pos"]
+    
+        # Restore the board
+        start_row, start_col = start_pos
+        end_row, end_col = end_pos
+        self.board[start_row][start_col] = moving_piece
+        self.board[end_row][end_col] = captured_piece
+    
+        # Restore piece_positions
+        try:
+            self.piece_positions[moving_piece].remove(end_pos)
+        except ValueError:
+            logging.debug('Tried to remove piece position not in list')
+        self.piece_positions[moving_piece].append(start_pos)
+    
+        if captured_piece != '..':
+            if captured_piece not in self.piece_positions:
+                self.piece_positions[captured_piece] = []
+            self.piece_positions[captured_piece].append(end_pos)
+    
+        # Restore game state variables
+        self.castling_rights = last_move["castling_rights"]
+        self.en_passant_target = last_move["en_passant_target"]
+        self.king_positions = last_move["king_positions"]
+    
+        # Switch turn back
+        self.turn = 'black' if self.turn == 'white' else 'white'
+
     def temp_move(self, move):
         """
         Temporarily makes a move on the board and returns the previous state for restoration.
