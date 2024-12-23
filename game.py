@@ -1,13 +1,15 @@
 import pygame
+from pprint import pprint
 from chess_board import ChessBoard
 
 class GameController:
-    def __init__(self):
+    def __init__(self, screen, ai=None):
         """
         Initializes the game controller, including the chessboard and pygame.
         """
         pygame.init()
-        self.screen = pygame.display.set_mode((640, 480))  # 480x480 pixel window
+        self.screen = screen  # 480x480 pixel window
+        self.ai = ai
         pygame.display.set_caption("Chess Game")
         self.clock = pygame.time.Clock()
 
@@ -75,14 +77,41 @@ class GameController:
                 self.selected_piece = None
                 self.legal_moves = []
                 self.check_game_over()
+
+                # If AI is playing the next turn, ensure it uses the updated board state
+                if self.ai and self.board.turn == 'black': # Assuming AI plays black
+                    self.ai_turn()
             else:  # Invalid move, deselect
                 self.selected_piece = None
                 self.legal_moves = []
         else:  # No piece is selected
-            piece = self.board.board[row][col]
-            if piece.startswith(self.board.turn[0]):  # Select a piece of the current player
-                self.selected_piece = (row, col)
-                self.legal_moves = self.board._get_piece_moves((row, col), piece)
+            if 0 <= row < 8 and 0 <= col < 8:
+                piece = self.board.board[row][col]
+                if piece.startswith(self.board.turn[0]):  # Select a piece of the current player
+                    self.selected_piece = (row, col)
+                    self.legal_moves = self.board._get_piece_moves((row, col), piece)
+
+    def ai_turn(self):
+        """
+        Executes the AI's turn after the board is updated.
+        """
+        legal_moves = self.board.generate_legal_moves(self.board.turn)  # Use updated board state
+        ai_move = self.ai.choose_move(self.board)  # Choose a move
+        if ai_move in legal_moves:  # Ensure move is valid
+            self.board.execute_move(ai_move)
+            self.check_game_over()  # Check for game-ending conditions
+        else:
+            raise ValueError("AI attempted an illegal move!")
+
+    def handle_ai_turn(self):
+        """
+        Handles the AI's turn by generating and executing its move.
+        """
+        if self.board.turn == 'black':  # Assuming AI plays as black
+            ai_move = self.ai.choose_move(self.board)
+            if ai_move:
+                self.board.execute_move(ai_move)
+                self.check_game_over()  # Check for game-ending conditions
 
     def check_game_over(self):
         """
@@ -181,6 +210,16 @@ class GameController:
         Main game loop for handling events and rendering the game.
         """
         while self.running:
+            if self.ai and self.board.turn == 'black':  # AI's turn (assuming AI plays as black)
+                legal_moves = self.board.generate_legal_moves(self.board.turn)
+                ai_move = self.ai.choose_move(self.board)
+                if ai_move in legal_moves:  # Validate AI move
+                    self.board.execute_move(ai_move)
+                    self.check_game_over()  # Check for game-ending conditions
+                else:
+                    raise ValueError("AI attempted an illegal move!")
+                continue
+
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self.running = False
@@ -191,10 +230,10 @@ class GameController:
             self.draw_board()
             self.highlight_moves()
             pygame.display.flip()
-            self.clock.tick(60)  # Limit to 60 FPS
+            pygame.time.Clock().tick(60)
 
         pygame.quit()
 
-game = GameController()
-game.__init__()
-game.game_loop()
+# game = GameController()
+# game.__init__()
+# game.game_loop()

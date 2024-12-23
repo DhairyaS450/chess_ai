@@ -1,5 +1,8 @@
 # chess_board.py
 
+from pprint import pprint
+
+
 class ChessBoard:
     def __init__(self):
         """
@@ -382,7 +385,8 @@ class ChessBoard:
         start_row, start_col = start_pos
         end_row, end_col = end_pos
         moving_piece = self.board[start_row][start_col]
-    
+        captured_piece = self.board[end_row][end_col]
+
         # Move the piece to the new position
         self.board[end_row][end_col] = moving_piece
         self.board[start_row][start_col] = '..'
@@ -391,6 +395,12 @@ class ChessBoard:
         # Update piece_positions
         self.piece_positions[moving_piece].remove(start_pos)
         self.piece_positions[moving_piece].append(end_pos)
+
+        # If a piece was captured, remove its position
+        if captured_piece != '..':
+            self.piece_positions[captured_piece].remove(end_pos)
+            if not self.piece_positions[captured_piece]:  # If no instances of the piece remain
+                del self.piece_positions[captured_piece]
     
         # Update move history
         self.move_history.append(move)
@@ -414,6 +424,8 @@ class ChessBoard:
     
         # Switch turn
         self.turn = 'black' if self.turn == 'white' else 'white'
+
+        pprint(self.piece_positions)
     
     def temp_move(self, move):
         """
@@ -519,6 +531,18 @@ class ChessBoard:
 
         return in_check
 
+    def is_checkmate(self, color):
+        """
+        Returns True if player is checkmated
+        """
+        return self.is_check(color) and len(self.generate_legal_moves(color)) == 0
+    
+    def is_stalemate(self, color):
+        """
+        Returns True if player is stalemated
+        """
+        return not self.is_check(color) and len(self.generate_legal_moves(color)) == 0
+
     def _handle_pawn_special_cases(self, start_pos, end_pos):
         """
         Handles special cases for pawns, such as promotion and en passant.
@@ -526,15 +550,24 @@ class ChessBoard:
         start_row, start_col = start_pos
         end_row, end_col = end_pos
         moving_piece = self.board[end_row][end_col]
+        other_piece = 'wP' if moving_piece == 'bP' else 'bP'
     
         # Promotion
         if (moving_piece == 'wP' and end_row == 0) or (moving_piece == 'bP' and end_row == 7):
-            self.board[end_row][end_col] = self._promote_pawn()
+            promoting_to = self._promote_pawn()
+            self.board[end_row][end_col] = promoting_to
+            self.piece_positions[moving_piece].remove((end_row, end_col)) # Remove the pawn from the list of pawns in piece position
+            if promoting_to in self.piece_positions.keys(): # Make sure the promoting piece is still in piece positions
+                self.piece_positions[promoting_to].append((end_row, end_col)) # Add the position of the promoting piece to piece positions
+            else:
+                self.piece_positions[promoting_to] = []
+                self.piece_positions[promoting_to].append((end_row, end_col))
     
         # En passant capture
         if self.en_passant_target == end_pos:
             print('En passant capture')
             self.board[start_row][end_col] = '..'
+            self.piece_positions[other_piece].remove((start_row, end_col)) # Update piece positions to make sure captured pawn is removed
 
     def can_castle(self, color, side):
         """
