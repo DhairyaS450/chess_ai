@@ -1,4 +1,5 @@
 # chess_board.py
+import random
 from pprint import pprint
 import logging
 
@@ -15,6 +16,7 @@ class ChessBoard:
         Initializes the chessboard with pieces in their starting positions and sets game state variables.
         """
         self.board = self._initialize_board()
+        self.legal_moves = []
         self.move_history = []
         self.king_positions = [(7, 4), (0, 4)] # Track king positions
         self.piece_positions = self._initialize_piece_positions() # Track piece positions
@@ -22,6 +24,9 @@ class ChessBoard:
                                 'black': {'king_side': True, 'queen_side': True}}
         self.en_passant_target = None  # Square eligible for en passant capture
         self.turn = 'white'
+        self.zobrist_table = self._initialize_zobrist_table()
+        self.current_hash = self._compute_initial_hash()
+        self.is_endgame = False
 
     def _initialize_piece_positions(self):
         """
@@ -56,6 +61,82 @@ class ChessBoard:
             ['wR', 'wN', 'wB', 'wQ', 'wK', 'wB', 'wN', 'wR'],  # White pieces
         ]
         return board
+    
+    def _initialize_zobrist_table(self):
+        """
+        Creates the initial zobrist table for efficient AI data collection and evaluation storage.
+        Returns:
+            dict: Randomly generated 64-bit integer for each piece on each square, representing current board state 
+        """
+        zobrist_table = {}
+        pieces = ['wP', 'wN', 'wB', 'wR', 'wQ', 'wK', 'bP', 'bN', 'bB', 'bR', 'bQ', 'bK']
+        for piece in pieces:
+            for square in range(64):  # 8x8 board = 64 squares
+                zobrist_table[(piece, square)] = random.getrandbits(64)
+        return zobrist_table
+    
+    def _compute_initial_hash(self):
+        """
+        Get the initial unique hash for starting position in zobrist table
+        Returns:
+            Integer representing unique hash
+        """
+        h = 0
+        for row in range(8):
+            for col in range(8):
+                piece = self.board[row][col] 
+                if piece != '..':
+                    h ^= self.zobrist_table[(piece, row * 8 + col)]
+        return h
+    
+    def update_hash(self, move, captured_piece):
+        """
+        Updates the hash incrementally based on the move.
+        Args:
+            move (tuple): ((start_row, start_col), (end_row, end_col))
+            captured_piece (str): The piece captured during the move.
+        """
+        start, end = move
+        start_pos = start[0] * 8 + start[1]
+        end_pos = end[0] * 8 + end[1]
+        moving_piece = self.board[start[0]][start[1]]
+
+        # Remove moving piece from start
+        if moving_piece != '..':
+            self.current_hash ^= self.zobrist_table[(moving_piece, start_pos)]
+        if moving_piece != '..':
+            self.current_hash ^= self.zobrist_table[(moving_piece, end_pos)]
+        # Handle castling
+        if moving_piece[1] == 'K' and abs(start[1] - end[1]) == 2:
+            if end[1] > start[1]:  # King-side castling
+                rook_start_pos = (start[0], 7)
+                rook_end_pos = (start[0], 5)
+            else:  # Queen-side castling
+                rook_start_pos = (start[0], 0)
+                rook_end_pos = (start[0], 3)
+                rook_piece = self.board[rook_end_pos[0]][rook_end_pos[1]]
+                rook_start_index = rook_start_pos[0] * 8 + rook_start_pos[1]
+                rook_end_index = rook_end_pos[0] * 8 + rook_end_pos[1]
+                # Update hash for rook move
+                self.current_hash ^= self.zobrist_table[(rook_piece, rook_start_index)]
+                self.current_hash ^= self.zobrist_table[(rook_piece, rook_end_index)]
+
+        # Handle promotion
+        if moving_piece[1] == 'P' and (end[0] == 0 or end[0] == 7):
+            promoted_piece = self.board[end[0]][end[1]]
+            self.current_hash ^= self.zobrist_table[(moving_piece, end_pos)]
+            self.current_hash ^= self.zobrist_table[(promoted_piece, end_pos)]
+
+        # Handle en passant
+        if moving_piece[1] == 'P' and self.en_passant_target == end:
+            captured_pawn_row = start[0]
+            captured_pawn_col = end[1]
+            captured_pawn_pos = captured_pawn_row * 8 + captured_pawn_col
+            captured_pawn = 'bP' if moving_piece == 'wP' else 'wP'
+            self.current_hash ^= self.zobrist_table[(captured_pawn, captured_pawn_pos)]
+        # Remove captured piece from end (if any)
+        if captured_piece != '..':
+            self.current_hash ^= self.zobrist_table[(captured_piece, end_pos)]
 
     def display_board(self):
         """
@@ -99,6 +180,22 @@ class ChessBoard:
                 col += col_step
 
         return True
+    
+    def update_game_phase(self):
+        """
+        Update the current game phase (middlegame/endgame). 
+        Sets self.is_endgame true if total material is less than 14 or total pawns is less than 8
+        """
+        piece_values = {'P': 1, 'N': 3, 'B': 3.5, 'R': 5, 'Q': 9}
+        total_material = sum(
+            piece_values.get(piece[1], 0) * len(positions)
+            for piece, positions in self.piece_positions.items()
+            if piece[1] != 'P'
+        )
+        total_pawns = sum(
+            len(positions) for piece, positions in self.piece_positions.items() if piece[1] == 'P'
+        )
+        self.is_endgame = total_material <= 14 or total_pawns <= 8
 
     def generate_legal_moves(self, color):
         """
@@ -116,7 +213,7 @@ class ChessBoard:
             if piece.startswith(player_prefix):
                 for position in positions:
                     legal_moves.extend(self._get_piece_moves(position, piece))
-
+        self.legal_moves = legal_moves
         return legal_moves
 
     def _get_piece_moves(self, position, piece):
@@ -400,27 +497,20 @@ class ChessBoard:
         # Update piece_positions
         try:
             self.piece_positions[moving_piece].remove(start_pos)
+            self.piece_positions[moving_piece].append(end_pos)
         except KeyError as e:
             logging.debug(e)
-        self.piece_positions[moving_piece].append(end_pos)
+        except ValueError as e:
+            logging.debug(e)
 
         # If a piece was captured, remove its position
         if captured_piece != '..':
-            self.piece_positions[captured_piece].remove(end_pos)
+            try:
+                self.piece_positions[captured_piece].remove(end_pos)
+            except ValueError as e:
+                logging.debug(e)
             if not self.piece_positions[captured_piece]:  # If no instances of the piece remain
                 del self.piece_positions[captured_piece]
-    
-        # Record the move and state changes
-        self.move_history.append({
-            "move": move,
-            "moving_piece": moving_piece,
-            "captured_piece": captured_piece,
-            "start_pos": start_pos,
-            "end_pos": end_pos,
-            "castling_rights": self.castling_rights.copy(),
-            "en_passant_target": self.en_passant_target,
-            "king_positions": self.king_positions[:],
-        })
     
         # Update king position if the king moved
         if moving_piece[1] == 'K':
@@ -428,6 +518,18 @@ class ChessBoard:
                 self.king_positions[0] = end_pos  # Update white king's position
             else:
                 self.king_positions[1] = end_pos  # Update black king's position
+
+        # Record the move and state changes
+        self.move_history.append({
+            "move": move,
+            "moving_piece": moving_piece,
+            "captured_piece": captured_piece,
+            "start_pos": start_pos,
+            "end_pos": end_pos,
+            "castling_rights": self.castling_rights,
+            "en_passant_target": self.en_passant_target,
+            "king_positions": self.king_positions[:],
+        })
 
         # Handle special cases
         if moving_piece[1] == 'P':  # Pawn
@@ -438,11 +540,17 @@ class ChessBoard:
         # Update game state variables
         self._update_castling_rights(moving_piece, start_pos)
         self._update_en_passant(moving_piece, start_pos, end_pos)
+        # Update Zobrist hash
+        self.update_hash(move, captured_piece)
+        # Update game phase
+        self.update_game_phase()
     
         # Switch turn
         self.turn = 'black' if self.turn == 'white' else 'white'
 
-        # pprint(self.piece_positions)
+        print(f'{moving_piece} moved from {start_pos} to {end_pos}')
+        pprint(self.piece_positions)
+        print(self.castling_rights)
     
     def undo_move(self):
         """
@@ -450,38 +558,57 @@ class ChessBoard:
         """
         if not self.move_history:
             raise ValueError("No moves to undo!")
-    
-        # Retrieve the last move from history
+
         last_move = self.move_history.pop()
         move = last_move["move"]
         moving_piece = last_move["moving_piece"]
         captured_piece = last_move["captured_piece"]
         start_pos, end_pos = last_move["start_pos"], last_move["end_pos"]
-    
+
         # Restore the board
         start_row, start_col = start_pos
         end_row, end_col = end_pos
         self.board[start_row][start_col] = moving_piece
         self.board[end_row][end_col] = captured_piece
-    
-        # Restore piece_positions
-        try:
+
+        # Restore piece positions
+        if moving_piece in self.piece_positions:
             self.piece_positions[moving_piece].remove(end_pos)
-        except ValueError:
-            logging.debug('Tried to remove piece position not in list')
-        self.piece_positions[moving_piece].append(start_pos)
-    
+            self.piece_positions[moving_piece].append(start_pos)
         if captured_piece != '..':
             if captured_piece not in self.piece_positions:
                 self.piece_positions[captured_piece] = []
             self.piece_positions[captured_piece].append(end_pos)
-    
-        # Restore game state variables
+
+        # Restore captured en passant pawn
+        if "captured_en_passant" in last_move:
+            captured_pawn, captured_pos = last_move["captured_en_passant"]
+            captured_row, captured_col = captured_pos
+            self.board[captured_row][captured_col] = captured_pawn
+            if captured_pawn in self.piece_positions:
+                self.piece_positions[captured_pawn].append(captured_pos)
+            else:
+                self.piece_positions[captured_pawn] = [captured_pos]
+
+        # Restore castling rook's position
+        if "castling_rook" in last_move:
+            rook_piece, rook_start, rook_end = last_move["castling_rook"]
+            self.board[rook_start[0]][rook_start[1]] = rook_piece
+            self.board[rook_end[0]][rook_end[1]] = '..'
+
+            if rook_piece in self.piece_positions:
+                self.piece_positions[rook_piece].remove(rook_end)
+                self.piece_positions[rook_piece].append(rook_start)
+
+        # Restore special states (e.g., en passant, castling rights)
         self.castling_rights = last_move["castling_rights"]
         self.en_passant_target = last_move["en_passant_target"]
         self.king_positions = last_move["king_positions"]
-    
-        # Switch turn back
+
+        # Recompute Zobrist hash
+        self.update_hash(last_move["move"], last_move["captured_piece"])
+
+        # Switch turn
         self.turn = 'black' if self.turn == 'white' else 'white'
 
     def temp_move(self, move):
@@ -607,24 +734,32 @@ class ChessBoard:
         start_row, start_col = start_pos
         end_row, end_col = end_pos
         moving_piece = self.board[end_row][end_col]
-        other_piece = 'wP' if moving_piece == 'bP' else 'bP'
-    
+
         # Promotion
         if (moving_piece == 'wP' and end_row == 0) or (moving_piece == 'bP' and end_row == 7):
             promoting_to = self._promote_pawn()
             self.board[end_row][end_col] = promoting_to
-            self.piece_positions[moving_piece].remove((end_row, end_col)) # Remove the pawn from the list of pawns in piece position
-            if promoting_to in self.piece_positions.keys(): # Make sure the promoting piece is still in piece positions
-                self.piece_positions[promoting_to].append((end_row, end_col)) # Add the position of the promoting piece to piece positions
-            else:
-                self.piece_positions[promoting_to] = []
+            self.piece_positions[moving_piece].remove((end_row, end_col))  # Remove pawn
+            if promoting_to in self.piece_positions:
                 self.piece_positions[promoting_to].append((end_row, end_col))
-    
-        # En passant capture
+            else:
+                self.piece_positions[promoting_to] = [(end_row, end_col)]
+
+            # Update move history with promotion
+            self.move_history[-1]["promotion"] = promoting_to
+
+        # En passant
         if self.en_passant_target == end_pos:
-            print('En passant capture')
-            self.board[start_row][end_col] = '..'
-            self.piece_positions[other_piece].remove((start_row, end_col)) # Update piece positions to make sure captured pawn is removed
+            captured_pawn_row = start_row
+            captured_pawn_col = end_col
+            captured_pawn = 'bP' if moving_piece == 'wP' else 'wP'
+
+            # Remove the captured pawn from the board
+            self.board[captured_pawn_row][captured_pawn_col] = '..'
+            self.piece_positions[captured_pawn].remove((captured_pawn_row, captured_pawn_col))
+
+            # Log the captured pawn's position in move history
+            self.move_history[-1]["captured_en_passant"] = (captured_pawn, (captured_pawn_row, captured_pawn_col))
 
     def can_castle(self, color, side):
         """
@@ -669,15 +804,15 @@ class ChessBoard:
             else:  # Queen-side castling
                 rook_start = (start_pos[0], 0)
                 rook_end = (start_pos[0], 3)
-            piece = self.board[rook_start[0]][rook_start[1]][0] + "R"
-        
-            # Move the rook
-            self.board[rook_end[0]][rook_end[1]] = self.board[rook_start[0]][rook_start[1]]
-            self.board[rook_start[0]][rook_start[1]] = '..'
 
-            # Update the rook position
-            self.piece_positions[piece].remove(rook_start)
-            self.piece_positions[piece].append(rook_end)
+            rook_piece = self.board[rook_start[0]][rook_start[1]]
+            self.board[rook_end[0]][rook_end[1]] = rook_piece
+            self.board[rook_start[0]][rook_start[1]] = '..'
+            self.piece_positions[rook_piece].remove(rook_start)
+            self.piece_positions[rook_piece].append(rook_end)
+
+            # Log the rook's movement in move history
+            self.move_history[-1]["castling_rook"] = (rook_piece, rook_start, rook_end)
     
     def _update_castling_rights(self, moving_piece, start_pos):
         """

@@ -223,15 +223,6 @@ class GameController:
         Main game loop for handling events and rendering the game.
         """
         while self.running:
-            if self.ai and self.board.turn == 'black':  # AI's turn (assuming AI plays as black)
-                ai_move = self.ai.choose_move(self.board)
-                if ai_move in legal_moves:  # Validate AI move
-                    self.board.execute_move(ai_move)
-                    self.check_game_over()  # Check for game-ending conditions
-                else:
-                    raise ValueError("AI attempted an illegal move!")
-                continue
-
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self.running = False
@@ -241,7 +232,6 @@ class GameController:
                     if event.key == pygame.K_u:  # Undo move
                         self.handle_undo()
 
-
             # Draw the board and update the screen
             self.draw_board()
             self.highlight_moves()
@@ -249,7 +239,3 @@ class GameController:
             pygame.time.Clock().tick(60)
 
         pygame.quit()
-
-# game = GameController()
-# game.__init__()
-# game.game_loop()
