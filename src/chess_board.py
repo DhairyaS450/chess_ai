@@ -125,7 +125,8 @@ class ChessBoard:
         if moving_piece[1] == 'P' and (end[0] == 0 or end[0] == 7):
             promoted_piece = self.board[end[0]][end[1]]
             self.current_hash ^= self.zobrist_table[(moving_piece, end_pos)]
-            self.current_hash ^= self.zobrist_table[(promoted_piece, end_pos)]
+            if (promoted_piece != '..'):
+                self.current_hash ^= self.zobrist_table[(promoted_piece, end_pos)]
 
         # Handle en passant
         if moving_piece[1] == 'P' and self.en_passant_target == end:
@@ -548,9 +549,9 @@ class ChessBoard:
         # Switch turn
         self.turn = 'black' if self.turn == 'white' else 'white'
 
-        print(f'{moving_piece} moved from {start_pos} to {end_pos}')
-        pprint(self.piece_positions)
-        print(self.castling_rights)
+        # print(f'{moving_piece} moved from {start_pos} to {end_pos}')
+        # pprint(self.piece_positions)
+        # print(self.castling_rights)
     
     def undo_move(self):
         """
@@ -573,7 +574,8 @@ class ChessBoard:
 
         # Restore piece positions
         if moving_piece in self.piece_positions:
-            self.piece_positions[moving_piece].remove(end_pos)
+            if end_pos in self.piece_positions[moving_piece]:
+                self.piece_positions[moving_piece].remove(end_pos)
             self.piece_positions[moving_piece].append(start_pos)
         if captured_piece != '..':
             if captured_piece not in self.piece_positions:
@@ -597,8 +599,45 @@ class ChessBoard:
             self.board[rook_end[0]][rook_end[1]] = '..'
 
             if rook_piece in self.piece_positions:
-                self.piece_positions[rook_piece].remove(rook_end)
+                if rook_end in self.piece_positions[rook_piece]:
+                    self.piece_positions[rook_piece].remove(rook_end)
                 self.piece_positions[rook_piece].append(rook_start)
+
+        # Restore promoted pawn
+        if "promotion" in last_move:
+            promotion_details = last_move["promotion"]
+            promoted_piece = promotion_details["promoted_piece"]
+            original_piece = last_move["moving_piece"]  # Original pawn
+            position = last_move["end_pos"]
+
+            # Replace the promoted piece with the original pawn
+            self.board[position[0]][position[1]] = original_piece
+
+            # Remove the promoted piece from piece_positions
+            if promoted_piece in self.piece_positions:
+                if position in self.piece_positions[promoted_piece]:
+                    self.piece_positions[promoted_piece].remove(position)
+                # Clean up if no more pieces of this type exist
+                if not self.piece_positions[promoted_piece]:
+                    del self.piece_positions[promoted_piece]
+
+            # Add the original pawn back to piece_positions
+            if original_piece in self.piece_positions:
+                self.piece_positions[original_piece].append(position)
+            else:
+                self.piece_positions[original_piece] = [position]
+
+            print(original_piece, position)
+
+            # Remove the extra piece at the end
+            if position in self.piece_positions[original_piece]:
+                self.piece_positions[original_piece].remove(position)
+                if captured_piece:
+                    self.board[position[0]][position[1]] = captured_piece
+                else:
+                    self.board[position[0]][position[1]] = '..'
+
+            pprint(self.piece_positions)
 
         # Restore special states (e.g., en passant, castling rights)
         self.castling_rights = last_move["castling_rights"]
@@ -610,6 +649,7 @@ class ChessBoard:
 
         # Switch turn
         self.turn = 'black' if self.turn == 'white' else 'white'
+
 
     def temp_move(self, move):
         """
@@ -656,6 +696,52 @@ class ChessBoard:
 
         return False
     
+    def is_check_after_move(self, move):
+        """
+        Determines if a given move will place the opposing king in check.
+        Args:
+            move (tuple): The move to test, in the format ((start_row, start_col), (end_row, end_col)).
+        Returns:
+            bool: True if the move results in a check on the opposing king, False otherwise.
+        """
+        # Execute the move temporarily
+        start_pos, end_pos = move
+        moving_piece = self.board[start_pos[0]][start_pos[1]]
+        original_piece_at_end = self.board[end_pos[0]][end_pos[1]]
+
+        self.board[end_pos[0]][end_pos[1]] = moving_piece
+        self.board[start_pos[0]][start_pos[1]] = '..'
+
+        # Temporarily update king position if the king is moving
+        original_king_position = None
+        if moving_piece[1] == 'K':
+            if moving_piece.startswith('w'):
+                original_king_position = self.king_positions[0]
+                self.king_positions[0] = end_pos
+            else:
+                original_king_position = self.king_positions[1]
+                self.king_positions[1] = end_pos
+
+        # Determine the color of the player making the move
+        moving_color = 'white' if moving_piece.startswith('w') else 'black'
+        opponent_color = 'black' if moving_color == 'white' else 'white'
+
+        # Check if the opponent's king is now in check
+        is_check = self.is_check(opponent_color)
+
+        # Undo the move
+        self.board[start_pos[0]][start_pos[1]] = moving_piece
+        self.board[end_pos[0]][end_pos[1]] = original_piece_at_end
+
+        # Restore the king's position if updated
+        if moving_piece[1] == 'K' and original_king_position:
+            if moving_piece.startswith('w'):
+                self.king_positions[0] = original_king_position
+            else:
+                self.king_positions[1] = original_king_position
+
+        return is_check
+
     def is_check_on_position(self, position, color):
         """
         Checks if a specific position is under attack by opponent pieces.
@@ -745,8 +831,12 @@ class ChessBoard:
             else:
                 self.piece_positions[promoting_to] = [(end_row, end_col)]
 
-            # Update move history with promotion
-            self.move_history[-1]["promotion"] = promoting_to
+            # Log the promotion in the move history
+            self.move_history[-1]["promotion"] = {
+                "promoted_piece": promoting_to,
+                "original_piece": moving_piece,
+                "position": (end_row, end_col)
+            }
 
         # En passant
         if self.en_passant_target == end_pos:
